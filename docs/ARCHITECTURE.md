@@ -125,6 +125,24 @@ carries one reason per provider.
   hand-written files); any other line break is refused (C5).
 - **IMDS session token reuse (C8).** Reused until 60 seconds before its
   TTL ends (or half the TTL, when the TTL is under two minutes).
+- **IMDS role name (C9).** A discovered role name is remembered by the
+  provider object, so a warm fetch is one GET (PRD section 9). Any non-200
+  answer for the role's credentials forgets it, so a role swapped on the
+  instance is listed again on the next call.
+- **Clock skew (F12).** `ErrorInfo::isClockSkew()` is true for
+  `RequestTimeTooSkewed` and `RequestExpired`, and for
+  `InvalidSignatureException` or `SignatureDoesNotMatch` only when the
+  message says the signature expired or is not yet current. A plain
+  signature mismatch is not reported as skew.
+- **Secrets in stack traces (F15).** Every parameter that carries a secret
+  key, session token or container URI is marked `#[\SensitiveParameter]`,
+  so traces printed with arguments (PHP's default without a php.ini) show
+  `Object(SensitiveParameterValue)`. On PHP 8.1 the attribute is ignored;
+  set `zend.exception_ignore_args=On` there, as the production php.ini
+  does.
+- **Header whitespace (S10).** Runs of ASCII whitespace (space, tab, CR,
+  LF, VT, FF) collapse to one space. The class is written out rather than
+  `\s`, so a non-C `LC_CTYPE` locale cannot change which bytes count.
 
 ## Names that differ from the PRD
 
@@ -137,20 +155,20 @@ carries one reason per provider.
 | Forced refresh on `CachingProvider` | `RefreshableProvider::refresh()` | `RetryOnExpired` needs only the interface. |
 | Default chain factory | `Credentials\DefaultChain::create()` | |
 | `Cache\ArrayCache`, `ApcuCache`, `EncryptedCache` | plus `FileCache` and `Psr16Cache` | Decision 6 below. |
-| S19 "add token after signing" option | not shipped | Decision 1 below. |
+| S19 "add token after signing" option | `SigningOptions(sessionTokenAfterSigning: true)` | Decision 1 below. |
 
 ## Decisions on the open questions (PRD section 13)
 
-1. **Session token placement.** The token is always signed: as the
+1. **Session token placement.** By default the token is signed: as the
    `X-Amz-Security-Token` header, or as a query parameter inside the
-   canonical query string when presigning. There is no post-signing append
-   in 0.1.0. The IAM guide says some services want the token added after
-   signing but names none, and the AWS SDKs sign it for every service. The
-   one case we know of, presigned WebSocket URLs for AWS IoT Core, is not a
-   supported service here: it needs no AWS call from PHP, only a URL, and
-   a caller can append the token to the output of `presign()` signed with
-   token-less credentials. The official vector `post-sts-header-after`
-   is passed exactly that way in the test suite.
+   canonical query string when presigning. The IAM guide says some
+   services want the token added after signing but names none, and the AWS
+   SDKs sign it for every service. The one case we know of is presigned
+   WebSocket URLs for AWS IoT Core. The PRD asks for the option, off by
+   default, so it ships as `SigningOptions(sessionTokenAfterSigning: true)`:
+   the header is appended after `Authorization`, or the query parameter is
+   placed just before `X-Amz-Signature`, and neither is in the canonical
+   request. The official vector `post-sts-header-after` runs with it.
 2. **PSR-7.** A separate adapter class inside the package,
    `Psr7\Psr7Adapter`. It works only when the PSR-7 interfaces are present
    at run time (`interface_exists` check, then a typed error) and adds no

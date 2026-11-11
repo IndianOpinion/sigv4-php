@@ -17,6 +17,9 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tokens, `x-amz-content-sha256`, precomputed and unsigned payloads.
 - `Signer::presign()`: presigned URLs, 1 second to 7 days, refusing by
   default an expiry that outlives temporary credentials.
+- `SigningOptions(sessionTokenAfterSigning: true)` sends the session token
+  without signing it, for a service that documents that form. Off by
+  default.
 - `Request::fromRawPath()` so a raw path is encoded exactly once.
 - Debug products (canonical request, string to sign) with the session
   token redacted in debug output.
@@ -40,8 +43,6 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `~/.aws/credentials`), SSO, `credential_process`, and web identity
   (`AssumeRoleWithWebIdentity`). Use environment variables or an instance
   or container role meanwhile.
-- Adding the session token after signing (unsigned). The token is always
-  signed; no supported AWS service needs otherwise.
 - Chunked (`aws-chunked`) payload signing and SigV4A.
 
 [Unreleased]: https://github.com/IndianOpinion/sigv4-php/compare/v0.1.0...HEAD

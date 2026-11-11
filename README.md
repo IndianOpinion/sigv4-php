@@ -149,6 +149,7 @@ the metadata timeout: set `AWS_EC2_METADATA_DISABLED=true`, or pass
 | `x-amz-content-sha256` | `SigningOptions(addContentSha256: true)` | S3 style only | |
 | Sign with the request's own date | `SigningOptions(useRequestDate: true)` | off | Otherwise a stale `x-amz-date` is replaced |
 | Strict presign expiry | `SigningOptions(strictPresignExpiry: false)` | on | Refuse an expiry past the credentials' expiry |
+| Session token after signing | `SigningOptions(sessionTokenAfterSigning: true)` | off | Token sent but not signed |
 | Presign expiry | `presign(..., $expires)` | 900 s | 1 to 604800 |
 | Clock offset | `new SystemClock(offsetSeconds)` | 0 s | For hosts whose clock drifts |
 | Refresh margin | `CachingProvider(marginSeconds: ...)` | 300 s | |
@@ -157,7 +158,7 @@ the metadata timeout: set `AWS_EC2_METADATA_DISABLED=true`, or pass
 | Shared cache | `CachingProvider(sharedCache: new EncryptedCache(...))` | none | Encrypted only |
 | IMDS endpoint | `AWS_EC2_METADATA_SERVICE_ENDPOINT`, `AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE=IPv6` | `http://169.254.169.254` | |
 | IMDS disabled | `AWS_EC2_METADATA_DISABLED=true` | false | |
-| IMDS role | `InstanceMetadataProvider(roleName: ...)` | discovered | Saves one request |
+| IMDS role | `InstanceMetadataProvider(roleName: ...)` | discovered once, then remembered | Saves the listing request |
 | IMDS token TTL | `InstanceMetadataProvider(tokenTtl: ...)` | 21600 s | 1 to 21600 |
 | IMDS timeouts and retry | `InstanceMetadataProvider(connectTimeout:, timeout:, retries:)` | 1 s, 2 s, 1 | |
 | Container timeouts | `ContainerProvider(connectTimeout:, timeout:)` | 1 s, 3 s | |
@@ -220,7 +221,8 @@ error type and request id for anything else.
 ## How to debug a 403
 
 1. Read the error type: `ErrorInfo::fromResponse(...)->getType()`.
-2. `RequestTimeTooSkewed`: the host clock is more than 15 minutes off.
+2. `RequestTimeTooSkewed` (or `ErrorInfo::isClockSkew()` is true): the
+   host clock is more than 15 minutes off.
    Fix NTP, or set an offset with `new SystemClock($seconds)` from the
    response `Date` header.
 3. `SignatureDoesNotMatch`: AWS puts its canonical request in the error
@@ -259,11 +261,15 @@ every design decision. [docs/PRD.md](docs/PRD.md) has the requirements.
   identity yet (see "Not yet" in the [CHANGELOG](CHANGELOG.md)).
 - No chunked (`aws-chunked`) payload signing, no SigV4A, no SigV2.
 - No retries other than the single refresh-and-resend helper.
-- The session token is always signed. If a service ever needs it added
-  after signing, sign with `$credentials->withoutSessionToken()` and add
-  the header or query parameter yourself.
+- The session token is signed by default, as every AWS SDK does. For a
+  service that documents the unsigned form, pass
+  `SigningOptions(sessionTokenAfterSigning: true)`.
 - `+` in a query string is a literal plus, as AWS reads it. Encode spaces
   as `%20`.
+- Secret parameters are marked `#[\SensitiveParameter]`, which hides
+  them from stack traces on PHP 8.2 and later. On PHP 8.1 set
+  `zend.exception_ignore_args=On` (the production php.ini default) so a
+  trace never prints the start of a secret.
 - The stream transport has a single timeout (used for the total); curl
   honours connect and total separately.
 
