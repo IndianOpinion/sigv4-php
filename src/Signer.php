@@ -91,6 +91,7 @@ final class Signer
         $payload = $request->getPayload() ?? Payload::empty();
         $payloadHash = $payload->getHash();
         $token = $credentials->getSessionToken();
+        $tokenAfter = $token !== null && $options->isSessionTokenAfterSigning();
 
         $now = $options->useRequestDate() ? self::dateFromRequest($request) : $this->clock->now();
         $amzDate = self::formatAmzDate($now);
@@ -112,7 +113,7 @@ final class Signer
             }
         }
         $headers[] = ['X-Amz-Date', $amzDate];
-        if ($token !== null) {
+        if ($token !== null && !$tokenAfter) {
             $headers[] = ['X-Amz-Security-Token', $token];
         }
         if ($addContentSha) {
@@ -152,6 +153,10 @@ final class Signer
                 $signature,
             ),
         ];
+        if ($tokenAfter) {
+            // Sent but not signed (SigningOptions::$sessionTokenAfterSigning).
+            $headers[] = ['X-Amz-Security-Token', (string) $token];
+        }
 
         $details = new SigningDetails(
             $canonicalRequest,
@@ -253,6 +258,7 @@ final class Signer
         $amzDate = self::formatAmzDate($now);
         $scope = self::credentialScope($amzDate, $region, $service);
         $token = $credentials->getSessionToken();
+        $tokenAfter = $token !== null && $options->isSessionTokenAfterSigning();
 
         $headers = $request->getHeaders();
         $toSign = $this->addRequestedHeaders(['host' => true], $options->getSignHeaders(), $headers);
@@ -265,7 +271,7 @@ final class Signer
             ['X-Amz-Expires', (string) $expires],
             ['X-Amz-SignedHeaders', $signedHeaders],
         ];
-        if ($token !== null) {
+        if ($token !== null && !$tokenAfter) {
             $added[] = ['X-Amz-Security-Token', $token];
         }
 
@@ -293,7 +299,9 @@ final class Signer
             $base = substr($base, 0, -strlen($query) - 1);
         }
         $url = $base . '?' . ($query !== '' ? $query . '&' : '')
-            . Uri::buildQuery($added) . '&X-Amz-Signature=' . $signature;
+            . Uri::buildQuery($added)
+            . ($tokenAfter ? '&X-Amz-Security-Token=' . Uri::encode((string) $token) : '')
+            . '&X-Amz-Signature=' . $signature;
 
         $headersToSend = [];
         foreach ($headers as [$name, $value]) {
@@ -454,7 +462,7 @@ final class Signer
             if ($lower === 'host' || !isset($toSign[$lower])) {
                 continue;
             }
-            $values[$lower][] = trim((string) preg_replace('/\s+/', ' ', $value));
+            $values[$lower][] = trim((string) preg_replace('/[\t\n\x0B\f\r ]+/', ' ', $value));
         }
         ksort($values, SORT_STRING);
         $lines = '';

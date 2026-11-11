@@ -126,7 +126,7 @@ final class ContainerProvider implements Provider
     /**
      * @throws ConfigurationException when the URI is malformed or its host is not allowed
      */
-    public static function checkFullUri(string $uri): string
+    public static function checkFullUri(#[\SensitiveParameter] string $uri): string
     {
         $parts = parse_url($uri);
         if (

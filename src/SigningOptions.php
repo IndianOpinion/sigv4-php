@@ -31,6 +31,10 @@ final class SigningOptions
      * @param bool $strictPresignExpiry when presigning with temporary credentials, refuse an expiry that outlives
      *                                  the credentials. On by default; when off the URL is signed and the shorter,
      *                                  effective expiry is returned and logged.
+     * @param bool $sessionTokenAfterSigning add the session token after signing, so it is sent (as the
+     *                                       `X-Amz-Security-Token` header or query parameter) but not signed. Off
+     *                                       by default: every AWS SDK signs the token. Only for a service that
+     *                                       documents the unsigned form.
      */
     public function __construct(
         array $signHeaders = [],
@@ -40,6 +44,7 @@ final class SigningOptions
         private readonly ?bool $addContentSha256 = null,
         private readonly bool $useRequestDate = false,
         private readonly bool $strictPresignExpiry = true,
+        private readonly bool $sessionTokenAfterSigning = false,
     ) {
         $names = [];
         foreach ($signHeaders as $name) {
@@ -84,5 +89,10 @@ final class SigningOptions
     public function isStrictPresignExpiry(): bool
     {
         return $this->strictPresignExpiry;
+    }
+
+    public function isSessionTokenAfterSigning(): bool
+    {
+        return $this->sessionTokenAfterSigning;
     }
 }

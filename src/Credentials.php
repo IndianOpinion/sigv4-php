@@ -25,8 +25,8 @@ final class Credentials
      */
     public function __construct(
         private readonly string $accessKeyId,
-        private readonly string $secretAccessKey,
-        private readonly ?string $sessionToken = null,
+        #[\SensitiveParameter] private readonly string $secretAccessKey,
+        #[\SensitiveParameter] private readonly ?string $sessionToken = null,
         ?\DateTimeImmutable $expiresAt = null,
         private readonly string $source = 'static',
     ) {

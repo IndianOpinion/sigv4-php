@@ -67,6 +67,22 @@ final class ErrorInfoTest extends TestCase
         self::assertFalse($info->isExpiredCredentials());
     }
 
+    public function testF12SignatureErrorsAreSkewOnlyWhenTheMessageSaysSo(): void
+    {
+        $expired = '{"__type":"InvalidSignatureException","message":"Signature expired: 20261111T120000Z is now '
+            . 'earlier than 20261111T121500Z (20261111T123000Z - 15 min.)"}';
+        self::assertTrue(ErrorInfo::fromResponse(400, [], $expired)->isClockSkew());
+
+        $future = '<Error><Code>SignatureDoesNotMatch</Code><Message>Signature not yet current: 20261111T130000Z '
+            . 'is still later than 20261111T121500Z</Message></Error>';
+        self::assertTrue(ErrorInfo::fromResponse(403, [], $future)->isClockSkew());
+
+        $mismatch = '{"__type":"InvalidSignatureException","message":"The request signature we calculated does '
+            . 'not match the signature you provided."}';
+        self::assertFalse(ErrorInfo::fromResponse(403, [], $mismatch)->isClockSkew());
+        self::assertFalse(ErrorInfo::fromResponse(403, ['x-amzn-errortype' => 'SignatureDoesNotMatch'], '')->isClockSkew());
+    }
+
     public function testExpiredCredentialTypesNeedAClientErrorStatus(): void
     {
         self::assertFalse(ErrorInfo::fromResponse(500, ['x-amzn-errortype' => 'ExpiredToken'], '')->isExpiredCredentials());

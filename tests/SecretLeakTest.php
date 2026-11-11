@@ -14,6 +14,7 @@ use IndianOpinion\SigV4\Credentials\ContainerProvider;
 use IndianOpinion\SigV4\Credentials\Environment;
 use IndianOpinion\SigV4\Credentials\EnvironmentProvider;
 use IndianOpinion\SigV4\Credentials\InstanceMetadataProvider;
+use IndianOpinion\SigV4\Credentials\StaticProvider;
 use IndianOpinion\SigV4\Exception\SigV4Exception;
 use IndianOpinion\SigV4\Http\FakeTransport;
 use IndianOpinion\SigV4\Http\HttpResponse;
@@ -47,13 +48,22 @@ final class SecretLeakTest extends TestCase
 
     private function capture(callable $call): void
     {
+        // Stack traces with full arguments, as PHP prints them without a
+        // php.ini: a secret passed as a string argument would show here.
+        $ignoreArgs = ini_set('zend.exception_ignore_args', '0');
+        $maxLen = ini_set('zend.exception_string_param_max_len', '1000000');
         try {
             $result = $call();
             $this->texts[] = print_r($result, true);
         } catch (SigV4Exception $e) {
             for ($x = $e; $x !== null; $x = $x->getPrevious()) {
                 $this->texts[] = $x->getMessage();
+                $this->texts[] = $x->getTraceAsString();
+                $this->texts[] = (string) $x;
             }
+        } finally {
+            ini_set('zend.exception_ignore_args', (string) $ignoreArgs);
+            ini_set('zend.exception_string_param_max_len', (string) $maxLen);
         }
     }
 
@@ -118,6 +128,12 @@ final class SecretLeakTest extends TestCase
 
         // Environment and chain.
         $this->capture(fn () => (new EnvironmentProvider(new Environment(['AWS_SECRET_ACCESS_KEY' => self::SECRET])))->getCredentials());
+        $this->capture(fn () => (new EnvironmentProvider(new Environment([
+            'AWS_ACCESS_KEY_ID' => 'AKIDLEAKCHECK',
+            'AWS_SECRET_ACCESS_KEY' => self::SECRET,
+            'AWS_SESSION_TOKEN' => self::TOKEN . "\n",
+        ])))->getCredentials());
+        $this->capture(fn () => StaticProvider::fromKeys('AKID', self::SECRET, self::TOKEN . "\r"));
         $this->capture(fn () => (new ChainProvider([new EnvironmentProvider(new Environment([]))], $this->logger))->getCredentials());
 
         // Caches: decrypt failures and write failures are warnings.

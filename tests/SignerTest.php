@@ -379,6 +379,48 @@ final class SignerTest extends TestCase
         ));
     }
 
+    public function testS19TokenAfterSigningIsSentButNotSigned(): void
+    {
+        $options = new SigningOptions(sessionTokenAfterSigning: true);
+        $signed = $this->signer()->sign(
+            new Request('GET', 'https://example.amazonaws.com/', ['X-Amz-Security-Token' => 'old']),
+            $this->credentials('the-token'),
+            'us-east-1',
+            'service',
+            $options,
+        );
+        self::assertSame('host;x-amz-date', $signed->getDetails()->getSignedHeaders());
+        self::assertStringNotContainsString('the-token', $signed->getDetails()->getCanonicalRequest());
+        self::assertSame('the-token', $signed->getHeader('x-amz-security-token'));
+        self::assertCount(1, array_filter(
+            $signed->getHeaders(),
+            static fn (array $h): bool => strtolower($h[0]) === 'x-amz-security-token',
+        ));
+
+        $presigned = $this->signer()->presign(
+            new Request('GET', 'https://example.amazonaws.com/'),
+            $this->credentials('the-token'),
+            'us-east-1',
+            'service',
+            60,
+            $options,
+        );
+        self::assertStringNotContainsString('the-token', $presigned->getDetails()->getCanonicalRequest());
+        self::assertStringContainsString('&X-Amz-Security-Token=the-token&X-Amz-Signature=', $presigned->getUrl());
+    }
+
+    public function testS10WhitespaceRulesIgnoreTheLocale(): void
+    {
+        $request = new Request('GET', 'https://example.amazonaws.com/', [
+            'X-Amz-Meta-A' => " \t a \t\t b  \t",
+            'X-Amz-Meta-B' => "caf\xC3\xA9\xC2\xA0x",
+        ]);
+        $signed = $this->signer()->sign($request, $this->credentials(), 'us-east-1', 'service');
+        $canonical = $signed->getDetails()->getCanonicalRequest();
+        self::assertStringContainsString("x-amz-meta-a:a b\n", $canonical);
+        self::assertStringContainsString("x-amz-meta-b:caf\xC3\xA9\xC2\xA0x\n", $canonical);
+    }
+
     public function testS20OneClockReadGivesTimestampAndScope(): void
     {
         $clock = new class implements Clock {

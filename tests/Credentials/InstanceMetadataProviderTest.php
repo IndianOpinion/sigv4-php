@@ -88,8 +88,8 @@ final class InstanceMetadataProviderTest extends TestCase
     {
         $transport = new FakeTransport([
             Imds::token('t1'), Imds::role(), Imds::credentials(),
-            Imds::role(), Imds::credentials(),
-            Imds::token('t2'), Imds::role(), Imds::credentials(),
+            Imds::credentials(),
+            Imds::token('t2'), Imds::credentials(),
         ]);
         $provider = $this->provider($transport, [], tokenTtl: 600);
         $provider->getCredentials();
@@ -99,9 +99,26 @@ final class InstanceMetadataProviderTest extends TestCase
         $provider->getCredentials();
 
         $methods = array_map(static fn ($r): string => $r->method, $transport->getRequests());
-        self::assertSame(['PUT', 'GET', 'GET', 'GET', 'GET', 'PUT', 'GET', 'GET'], $methods);
+        // The role is listed once and remembered: later fetches are one GET.
+        self::assertSame(['PUT', 'GET', 'GET', 'GET', 'PUT', 'GET'], $methods);
         self::assertSame('600', $transport->getRequests()[0]->headers['X-aws-ec2-metadata-token-ttl-seconds']);
-        self::assertSame('t2', $transport->getRequests()[7]->headers['X-aws-ec2-metadata-token']);
+        self::assertSame('t2', $transport->getRequests()[5]->headers['X-aws-ec2-metadata-token']);
+    }
+
+    public function testDiscoveredRoleIsListedAgainAfterA404(): void
+    {
+        $transport = new FakeTransport([
+            Imds::token(), Imds::role('old-role'), new HttpResponse(404),
+            Imds::role('new-role'), Imds::credentials(),
+        ]);
+        $provider = $this->provider($transport, []);
+        try {
+            $provider->getCredentials();
+            self::fail('A 404 for the role credentials must throw.');
+        } catch (CredentialsException) {
+        }
+        $provider->getCredentials();
+        self::assertStringEndsWith('/security-credentials/new-role', $transport->getRequests()[4]->url);
     }
 
     /**

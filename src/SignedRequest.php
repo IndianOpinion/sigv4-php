@@ -22,7 +22,7 @@ final class SignedRequest
         private readonly array $headers,
         private readonly string $body,
         private readonly SigningDetails $details,
-        private readonly ?string $sessionToken = null,
+        #[\SensitiveParameter] private readonly ?string $sessionToken = null,
     ) {
     }
 

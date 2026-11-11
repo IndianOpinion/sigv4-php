@@ -26,13 +26,23 @@ final class ErrorInfo
     public const CLOCK_SKEW_TYPES = [
         'RequestTimeTooSkewed',
         'RequestExpired',
+    ];
+
+    /**
+     * Types that some services use both for a bad signature and for a
+     * request time out of range. They count as clock skew only when the
+     * message says the signature expired or is not yet current.
+     */
+    public const SIGNATURE_TYPES = [
         'InvalidSignatureException',
+        'SignatureDoesNotMatch',
     ];
 
     private function __construct(
         private readonly int $status,
         private readonly string $type,
         private readonly ?string $requestId,
+        private readonly bool $timeMessage = false,
     ) {
     }
 
@@ -64,7 +74,9 @@ final class ErrorInfo
         $requestId = $lower['x-amzn-requestid'] ?? $lower['x-amz-request-id'] ?? null;
         $requestId = $requestId === null || trim($requestId) === '' ? null : trim($requestId);
 
-        return new self($status, self::clean($type), $requestId);
+        $timeMessage = preg_match('/signature (has )?expired|signature not yet current/i', $body) === 1;
+
+        return new self($status, self::clean($type), $requestId, $timeMessage);
     }
 
     public static function fromHttpResponse(HttpResponse $response): self
@@ -101,8 +113,11 @@ final class ErrorInfo
      */
     public function isClockSkew(): bool
     {
-        return in_array($this->type, self::CLOCK_SKEW_TYPES, true)
-            && ($this->type !== 'InvalidSignatureException' || $this->status === 403);
+        if (in_array($this->type, self::CLOCK_SKEW_TYPES, true)) {
+            return true;
+        }
+
+        return $this->timeMessage && in_array($this->type, self::SIGNATURE_TYPES, true);
     }
 
     private static function fromJson(string $body): ?string

@@ -23,7 +23,8 @@ use IndianOpinion\SigV4\Internal\Logger;
  * 1. PUT /latest/api/token for a session token (kept in memory, reused
  *    until shortly before its TTL ends).
  * 2. GET /latest/meta-data/iam/security-credentials/ for the role name
- *    (skipped when a role name is configured).
+ *    (skipped when a role name is configured; remembered after the first
+ *    successful listing).
  * 3. GET /latest/meta-data/iam/security-credentials/<role>.
  *
  * Not on EC2 (the token request cannot connect or times out): not found,
@@ -47,6 +48,7 @@ final class InstanceMetadataProvider implements Provider
     private readonly Logger $logger;
     private ?string $token = null;
     private int $tokenRefreshAt = 0;
+    private ?string $discoveredRole = null;
 
     /**
      * @param string|null $roleName skip the role listing and use this role
@@ -93,8 +95,12 @@ final class InstanceMetadataProvider implements Provider
         }
         $base = $this->resolveEndpoint();
 
-        $role = $this->roleName ?? $this->fetchRoleName($base);
+        $role = $this->roleName ?? ($this->discoveredRole ??= $this->fetchRoleName($base));
         $response = $this->metadataGet($base, self::ROLE_PATH . $role);
+        if ($response->status !== 200) {
+            // The role may have been swapped on the instance; list it again next time.
+            $this->discoveredRole = null;
+        }
         if ($response->status === 404) {
             throw new CredentialsException(sprintf('imds: no credentials for role "%s" (HTTP 404).', $role));
         }

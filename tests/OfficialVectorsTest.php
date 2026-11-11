@@ -22,9 +22,7 @@ use PHPUnit\Framework\TestCase;
  * always double-encodes (a raw space on the wire signs as %20).
  *
  * `post-sts-header-after` has `omit_session_token: true`: the token is added
- * after signing. This library always signs the token (see ARCHITECTURE.md),
- * so the test reproduces that case the way a caller would: sign with the
- * token-less credentials, then append the token header or query parameter.
+ * after signing, which is the `sessionTokenAfterSigning` option.
  */
 final class OfficialVectorsTest extends TestCase
 {
@@ -51,7 +49,7 @@ final class OfficialVectorsTest extends TestCase
     #[DataProvider('cases')]
     public function testHeaderVariant(string $dir): void
     {
-        [$context, $request, $options, $credentials, $appendToken] = $this->load($dir);
+        [$context, $request, $options, $credentials] = $this->load($dir);
         $signer = new Signer(new FrozenClock($context['timestamp']));
 
         $signed = $signer->sign($request, $credentials, $context['region'], $context['service'], $options);
@@ -62,9 +60,6 @@ final class OfficialVectorsTest extends TestCase
         self::assertSame(trim($this->read($dir, 'header-signature.txt')), $details->getSignature());
 
         $headers = $signed->getHeaders();
-        if ($appendToken !== null) {
-            $headers[] = ['X-Amz-Security-Token', $appendToken];
-        }
         $expected = self::parseRequest($this->read($dir, 'header-signed-request.txt'));
         self::assertSame($expected['method'], $signed->getMethod());
         self::assertSame('https://' . $request->getHost() . $expected['target'], $signed->getUrl());
@@ -74,7 +69,7 @@ final class OfficialVectorsTest extends TestCase
     #[DataProvider('cases')]
     public function testQueryVariant(string $dir): void
     {
-        [$context, $request, $options, $credentials, $appendToken] = $this->load($dir);
+        [$context, $request, $options, $credentials] = $this->load($dir);
         $signer = new Signer(new FrozenClock($context['timestamp']));
 
         $presigned = $signer->presign(
@@ -92,9 +87,6 @@ final class OfficialVectorsTest extends TestCase
         self::assertSame(trim($this->read($dir, 'query-signature.txt')), $details->getSignature());
 
         $url = $presigned->getUrl();
-        if ($appendToken !== null) {
-            $url .= '&X-Amz-Security-Token=' . rawurlencode($appendToken);
-        }
         $expected = self::parseRequest($this->read($dir, 'query-signed-request.txt'));
         $prefix = 'https://' . $request->getHost();
         self::assertStringStartsWith($prefix, $url);
@@ -105,7 +97,7 @@ final class OfficialVectorsTest extends TestCase
     }
 
     /**
-     * @return array{0: array{timestamp: string, region: string, service: string, expiration_in_seconds: int}, 1: Request, 2: SigningOptions, 3: Credentials, 4: ?string}
+     * @return array{0: array{timestamp: string, region: string, service: string, expiration_in_seconds: int}, 1: Request, 2: SigningOptions, 3: Credentials}
      */
     private function load(string $dir): array
     {
@@ -134,16 +126,12 @@ final class OfficialVectorsTest extends TestCase
             normalizePath: (bool) $context['normalize'],
             doubleEncodePath: true,
             addContentSha256: $signBody,
+            sessionTokenAfterSigning: ($context['omit_session_token'] ?? false) === true,
         );
 
         $c = $context['credentials'];
         self::assertIsArray($c);
         $token = isset($c['token']) ? (string) $c['token'] : null;
-        $appendToken = null;
-        if ($token !== null && ($context['omit_session_token'] ?? false) === true) {
-            $appendToken = $token;
-            $token = null;
-        }
         $credentials = new Credentials((string) $c['access_key_id'], (string) $c['secret_access_key'], $token);
         $typed = [
             'timestamp' => (string) $context['timestamp'],
@@ -152,7 +140,7 @@ final class OfficialVectorsTest extends TestCase
             'expiration_in_seconds' => (int) $context['expiration_in_seconds'],
         ];
 
-        return [$typed, $request, $options, $credentials, $appendToken];
+        return [$typed, $request, $options, $credentials];
     }
 
     private function read(string $dir, string $file): string

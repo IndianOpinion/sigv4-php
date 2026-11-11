@@ -24,7 +24,7 @@ final class PresignedUrl
         private readonly \DateTimeImmutable $signedAt,
         private readonly array $headersToSend,
         private readonly SigningDetails $details,
-        private readonly ?string $sessionToken = null,
+        #[\SensitiveParameter] private readonly ?string $sessionToken = null,
     ) {
     }
 

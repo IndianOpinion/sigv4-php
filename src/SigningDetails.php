@@ -23,7 +23,7 @@ final class SigningDetails
         private readonly string $amzDate,
         private readonly string $payloadHash,
         private readonly string $signature,
-        private readonly ?string $sessionToken = null,
+        #[\SensitiveParameter] private readonly ?string $sessionToken = null,
     ) {
     }
 
@@ -92,7 +92,7 @@ final class SigningDetails
     /**
      * @internal
      */
-    public static function redact(string $text, ?string $token): string
+    public static function redact(string $text, #[\SensitiveParameter] ?string $token): string
     {
         if ($token === null || $token === '') {
             return $text;

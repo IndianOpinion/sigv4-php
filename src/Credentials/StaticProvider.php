@@ -18,8 +18,8 @@ final class StaticProvider implements Provider
 
     public static function fromKeys(
         string $accessKeyId,
-        string $secretAccessKey,
-        ?string $sessionToken = null,
+        #[\SensitiveParameter] string $secretAccessKey,
+        #[\SensitiveParameter] ?string $sessionToken = null,
         ?\DateTimeImmutable $expiresAt = null,
     ): self {
         return new self(new Credentials($accessKeyId, $secretAccessKey, $sessionToken, $expiresAt, 'static'));
