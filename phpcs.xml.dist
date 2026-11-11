@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<ruleset name="sigv4-php">
+    <description>PSR-12 for sigv4-php.</description>
+    <file>src</file>
+    <file>tests</file>
+    <file>examples</file>
+    <file>bootstrap.php</file>
+    <exclude-pattern>tests/fixtures/*</exclude-pattern>
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+    <rule ref="PSR12"/>
+    <!-- Tests hold long literal hashes, URLs and fixture lines; keep the 120 limit for src only. -->
+    <rule ref="Generic.Files.LineLength">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+</ruleset>
