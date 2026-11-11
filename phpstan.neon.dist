@@ -1,0 +1,9 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+        - examples
+        - bootstrap.php
+    excludePaths:
+        - tests/fixtures
