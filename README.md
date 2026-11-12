@@ -312,6 +312,8 @@ output.
 The library is MIT licensed: see [LICENSE](LICENSE). Copyright (c) 2026
 Indian Opinion.
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 The official AWS SigV4 test vectors in `tests/fixtures/aws-sig-v4/` are
 copied unmodified from [awslabs/aws-c-auth](https://github.com/awslabs/aws-c-auth)
 and are licensed under the Apache License 2.0; that folder carries its own
